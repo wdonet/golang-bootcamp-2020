@@ -192,6 +192,13 @@ func markTodoDone(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	// Write everything again
+	if err := reWriteCSV(todos); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, `{"error": "Unable to update datasource"}`)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(todo)
 }
 
@@ -207,6 +214,13 @@ func markTodoPending(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	// Write everything again
+	if err := reWriteCSV(todos); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, `{"error": "Unable to update datasource"}`)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(todo)
 }
 
@@ -222,6 +236,13 @@ func updateTask(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	// Write everything again
+	if err := reWriteCSV(todos); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, `{"error": "Unable to update datasource"}`)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(todo)
 }
 
