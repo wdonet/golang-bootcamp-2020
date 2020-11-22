@@ -20,144 +20,21 @@ type Todo struct {
 	IsDeleted bool   `json:"isDeleted"`
 }
 
-var todos []Todo
 var filename string = "./data/todos.csv"
 
-func openForReadCsvFile(filename string) *os.File {
+func readCsvFile(filename string) []Todo {
+	// todos = append(todos, Todo{ID: 10, Task: "Wash dishes", Status: "pending", IsDeleted: false})
+	// todos = append(todos, Todo{ID: 20, Task: "Make report", Status: "pending", IsDeleted: false})
 	csvfile, err := os.Open(filename)
 	if err != nil {
 		log.Println("Unable to open for read CSV file!", err)
 		return nil
 	}
-	// r := csv.NewReader(csvfile)
-	// r.TrimLeadingSpace = true
-	return csvfile
-}
-
-func openForWriteCsvFile(filename string) *os.File {
-	csvfile, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 644)
-	if err != nil {
-		log.Println("Unable to open for write CSV file!", err)
-		return nil
-	}
-	return csvfile
-}
-
-// GET /todos
-func getTodos(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(todos)
-}
-
-// GET /todos/{id}
-func getTodo(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	params := mux.Vars(r)
-	for _, item := range todos {
-		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
-			json.NewEncoder(w).Encode(item)
-			return
-		}
-	}
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(&Todo{})
-}
-
-// POST /todos
-func createTodo(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Contetn-Type", "application/json")
-	csvfile := openForWriteCsvFile(filename)
-	// Add to the CSV file
-	if csvfile == nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		io.WriteString(w, `{"error": "Unable to open datasource"}`)
-		return
-	}
-	cw := csv.NewWriter(csvfile)
-	var todo Todo
-	_ = json.NewDecoder(r.Body).Decode(&todo)
-	id := strconv.Itoa(todo.ID)
-	isDeleted := strconv.FormatBool(todo.IsDeleted)
-	if err := cw.Write([]string{id, todo.Task, todo.Status, isDeleted}); err != nil {
-		log.Fatalln("Error persisting into csv", filename, err)
-	} else {
-		cw.Flush()
-	}
-	csvfile.Close()
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(todo)
-}
-
-func softDeleteTodo(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Contetn-Type", "application/json")
-	params := mux.Vars(r)
-	var todo Todo
-	for idx, item := range todos {
-		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
-			todos[idx].IsDeleted = true
-			todo = todos[idx]
-			// todos = append(todos[:idx], todos[idx+1:]...) // hard delete
-			break
-		}
-	}
-	json.NewEncoder(w).Encode(todo)
-}
-
-func markTodoDone(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Contetn-Type", "application/json")
-	params := mux.Vars(r)
-	var todo Todo
-	for idx, item := range todos {
-		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
-			todos[idx].Status = "done"
-			todo = todos[idx]
-			break
-		}
-	}
-	json.NewEncoder(w).Encode(todo)
-}
-
-func markTodoPending(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Contetn-Type", "application/json")
-	params := mux.Vars(r)
-	var todo Todo
-	for idx, item := range todos {
-		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
-			todos[idx].Status = "pending"
-			todo = todos[idx]
-			break
-		}
-	}
-	json.NewEncoder(w).Encode(todo)
-}
-
-func updateTask(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Contetn-Type", "application/json")
-	params := mux.Vars(r)
-	var todo Todo
-	for idx, item := range todos {
-		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
-			todos[idx].Task = params["task"]
-			todo = todos[idx]
-			break
-		}
-	}
-	json.NewEncoder(w).Encode(todo)
-}
-
-func main() {
-	router := mux.NewRouter()
-
-	// TODO get data from DB or CSV
-	// todos = append(todos, Todo{ID: 10, Task: "Wash dishes", Status: "pending", IsDeleted: false})
-	// todos = append(todos, Todo{ID: 20, Task: "Make report", Status: "pending", IsDeleted: false})
-	// GET data from CSV
-	csvfile := openForReadCsvFile(filename)
-	log.Println("Loading records from ", filename)
 	r := csv.NewReader(csvfile)
 	r.TrimLeadingSpace = true
+
 	var numOfRecords int = 0
+	var todos []Todo
 	for {
 		record, err := r.Read()
 		if err == io.EOF {
@@ -187,6 +64,169 @@ func main() {
 		}
 	}
 	csvfile.Close()
+	return todos
+}
+
+// TODO return error
+func openForWriteCsvFile(filename string) *os.File {
+	csvfile, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 644)
+	if err != nil {
+		log.Println("Unable to open for write CSV file!", err)
+		return nil
+	}
+	return csvfile
+}
+
+func cleanupCsvFile(filename string) (*csv.Writer, *os.File, error) {
+	csvfile, err := os.Create(filename)
+	if err != nil {
+		log.Println("Unable to create", filename, err)
+		return nil, nil, err
+	}
+	cw := csv.NewWriter(csvfile)
+	if err := cw.Write([]string{"ID", "Task", "Status", "IsDeleted"}); err != nil {
+		log.Fatalln("Unable to initialize", filename, err)
+		return nil, nil, err
+	}
+	return cw, csvfile, nil
+}
+
+func todoToStringArray(todo Todo) []string {
+	id := strconv.Itoa(todo.ID)
+	isDeleted := strconv.FormatBool(todo.IsDeleted)
+	return []string{id, todo.Task, todo.Status, isDeleted}
+}
+
+// GET /todos
+func getTodos(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	todos := readCsvFile(filename)
+	json.NewEncoder(w).Encode(todos)
+}
+
+// GET /todos/{id}
+func getTodo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	params := mux.Vars(r)
+	todos := readCsvFile(filename)
+	for _, item := range todos {
+		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
+			json.NewEncoder(w).Encode(item)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(&Todo{})
+}
+
+// POST /todos
+func createTodo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Contetn-Type", "application/json")
+	csvfile := openForWriteCsvFile(filename)
+	if csvfile == nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, `{"error": "Unable to open datasource"}`)
+		return
+	}
+	cw := csv.NewWriter(csvfile)
+	var todo Todo
+	_ = json.NewDecoder(r.Body).Decode(&todo)
+	if err := cw.Write(todoToStringArray(todo)); err != nil {
+		log.Fatalln("Error persisting into csv", filename, err)
+	} else {
+		cw.Flush()
+	}
+	csvfile.Close()
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(todo)
+}
+
+func reWriteCSV(todos []Todo) error {
+	csvw, csvfile, err := cleanupCsvFile(filename)
+	if err != nil {
+		return err
+	}
+	for _, item := range todos {
+		if err := csvw.Write(todoToStringArray(item)); err != nil {
+			log.Fatalln("Unable to persist:", item, err)
+		}
+	}
+	csvw.Flush()
+	csvfile.Close()
+	return nil
+}
+
+func softDeleteTodo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Contetn-Type", "application/json")
+	params := mux.Vars(r)
+	var todo Todo
+	todos := readCsvFile(filename)
+	for idx, item := range todos {
+		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
+			todos[idx].IsDeleted = true
+			todo = todos[idx]
+			// todos = append(todos[:idx], todos[idx+1:]...) // hard delete
+			break
+		}
+	}
+	// Write everything again
+	if err := reWriteCSV(todos); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, `{"error": "Unable to update datasource"}`)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(todo)
+}
+
+func markTodoDone(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Contetn-Type", "application/json")
+	params := mux.Vars(r)
+	var todo Todo
+	todos := readCsvFile(filename)
+	for idx, item := range todos {
+		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
+			todos[idx].Status = "done"
+			todo = todos[idx]
+			break
+		}
+	}
+	json.NewEncoder(w).Encode(todo)
+}
+
+func markTodoPending(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Contetn-Type", "application/json")
+	params := mux.Vars(r)
+	var todo Todo
+	todos := readCsvFile(filename)
+	for idx, item := range todos {
+		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
+			todos[idx].Status = "pending"
+			todo = todos[idx]
+			break
+		}
+	}
+	json.NewEncoder(w).Encode(todo)
+}
+
+func updateTask(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Contetn-Type", "application/json")
+	params := mux.Vars(r)
+	var todo Todo
+	todos := readCsvFile(filename)
+	for idx, item := range todos {
+		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
+			todos[idx].Task = params["task"]
+			todo = todos[idx]
+			break
+		}
+	}
+	json.NewEncoder(w).Encode(todo)
+}
+
+func main() {
+	router := mux.NewRouter()
 
 	// Routes
 	router.HandleFunc("/todos", getTodos).Methods("GET")
