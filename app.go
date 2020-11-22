@@ -3,13 +3,11 @@ package main
 import (
 	"encoding/csv"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -23,10 +21,32 @@ type Todo struct {
 }
 
 var todos []Todo
+var filename string = "./data/todos.csv"
+
+func openForReadCsvFile(filename string) *os.File {
+	csvfile, err := os.Open(filename)
+	if err != nil {
+		log.Println("Unable to open for read CSV file!", err)
+		return nil
+	}
+	// r := csv.NewReader(csvfile)
+	// r.TrimLeadingSpace = true
+	return csvfile
+}
+
+func openForWriteCsvFile(filename string) *os.File {
+	csvfile, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 644)
+	if err != nil {
+		log.Println("Unable to open for write CSV file!", err)
+		return nil
+	}
+	return csvfile
+}
 
 // GET /todos
 func getTodos(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(todos)
 }
 
@@ -40,14 +60,32 @@ func getTodo(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(&Todo{})
 }
 
+// POST /todos
 func createTodo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Contetn-Type", "application/json")
+	csvfile := openForWriteCsvFile(filename)
+	// Add to the CSV file
+	if csvfile == nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, `{"error": "Unable to open datasource"}`)
+		return
+	}
+	cw := csv.NewWriter(csvfile)
 	var todo Todo
 	_ = json.NewDecoder(r.Body).Decode(&todo)
-	todos = append(todos, todo)
+	id := strconv.Itoa(todo.ID)
+	isDeleted := strconv.FormatBool(todo.IsDeleted)
+	if err := cw.Write([]string{id, todo.Task, todo.Status, isDeleted}); err != nil {
+		log.Fatalln("Error persisting into csv", filename, err)
+	} else {
+		cw.Flush()
+	}
+	csvfile.Close()
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(todo)
 }
 
@@ -115,41 +153,36 @@ func main() {
 	// todos = append(todos, Todo{ID: 10, Task: "Wash dishes", Status: "pending", IsDeleted: false})
 	// todos = append(todos, Todo{ID: 20, Task: "Make report", Status: "pending", IsDeleted: false})
 	// GET data from CSV
-	var filename string = "./data/todos.csv"
-	csvfile, err := os.Open(filename)
-	if err != nil {
-		log.Fatalln("Unable to open CSV file!", err)
-	}
-	fmt.Println("Loading records from ", filename)
+	csvfile := openForReadCsvFile(filename)
+	log.Println("Loading records from ", filename)
 	r := csv.NewReader(csvfile)
+	r.TrimLeadingSpace = true
 	var numOfRecords int = 0
 	for {
 		record, err := r.Read()
 		if err == io.EOF {
-			fmt.Println("CSV reading done.")
+			log.Println("CSV reading done.")
 			break
 		}
 		if err != nil {
 			switch t := err.(type) {
 			default:
-				log.Fatalln("When reading CSV", err)
+				log.Println("When reading CSV", err)
 			case *csv.ParseError:
-				fmt.Println("Ignoring record #", numOfRecords, t)
+				log.Println("Ignoring record #", numOfRecords, t)
 				continue
 			}
 		}
 		numOfRecords++
-		fmt.Println(record[0], record[1], record[2], record[3])
+		log.Println(record[0], record[1], record[2], record[3])
 		// skip headers
 		if numOfRecords != 1 {
-			id, idErr := strconv.Atoi(strings.TrimSpace(record[0]))
-			isDeleted, delErr := strconv.ParseBool(strings.TrimSpace(record[3]))
+			id, idErr := strconv.Atoi(record[0])
+			isDeleted, delErr := strconv.ParseBool(record[3])
 			if idErr == nil && delErr == nil {
-				var task = strings.TrimSpace(record[1])
-				var status = strings.TrimSpace(record[2])
-				todos = append(todos, Todo{ID: id, Task: task, Status: status, IsDeleted: isDeleted})
+				todos = append(todos, Todo{ID: id, Task: record[1], Status: record[2], IsDeleted: isDeleted})
 			} else {
-				fmt.Println("Ignoring record #", numOfRecords, idErr, delErr)
+				log.Println("Ignoring record #", numOfRecords, idErr, delErr)
 			}
 		}
 	}
@@ -165,6 +198,6 @@ func main() {
 	router.HandleFunc("/todos/{id}", softDeleteTodo).Methods("DELETE")
 
 	// Start server
-	fmt.Println("Starting server at port [3000].")
+	log.Println("Starting server at port [3000].")
 	log.Fatal(http.ListenAndServe(":3000", router))
 }
