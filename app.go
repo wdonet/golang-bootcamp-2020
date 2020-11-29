@@ -44,7 +44,7 @@ func getTodo(w http.ResponseWriter, r *http.Request) {
 }
 
 func createTodo(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Contetn-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 	var todo Todo
 	_ = json.NewDecoder(r.Body).Decode(&todo)
 	todos = append(todos, todo)
