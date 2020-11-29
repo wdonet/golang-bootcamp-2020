@@ -122,7 +122,7 @@ func main() {
 	}
 	fmt.Println("Loading records from ", filename)
 	r := csv.NewReader(csvfile)
-	var numOfRecords int = 0
+	numOfRecords := 0
 	for {
 		record, err := r.Read()
 		if err == io.EOF {
