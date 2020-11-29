@@ -52,7 +52,7 @@ func createTodo(w http.ResponseWriter, r *http.Request) {
 }
 
 func softDeleteTodo(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Contetn-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
 	var todo Todo
 	for idx, item := range todos {
