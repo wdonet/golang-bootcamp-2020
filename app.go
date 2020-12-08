@@ -10,21 +10,12 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/wdonet/golang-bootcamp-2020/domain/model"
 )
 
-// Todo struct (Model)
-type Todo struct {
-	ID        int    `json:"id"`
-	Task      string `json:"task"`
-	Status    string `json:"status"`
-	IsDeleted bool   `json:"isDeleted"`
-}
+const filename string = "./data/todos.csv"
 
-var filename string = "./data/todos.csv"
-
-func readCsvFile(filename string) []Todo {
-	// todos = append(todos, Todo{ID: 10, Task: "Wash dishes", Status: "pending", IsDeleted: false})
-	// todos = append(todos, Todo{ID: 20, Task: "Make report", Status: "pending", IsDeleted: false})
+func readCsvFile(filename string) []*model.Todo {
 	csvfile, err := os.Open(filename)
 	if err != nil {
 		log.Println("Unable to open for read CSV file!", err)
@@ -34,7 +25,7 @@ func readCsvFile(filename string) []Todo {
 	r.TrimLeadingSpace = true
 
 	var numOfRecords int = 0
-	var todos []Todo
+	var todos []*model.Todo
 	for {
 		record, err := r.Read()
 		if err == io.EOF {
@@ -57,7 +48,7 @@ func readCsvFile(filename string) []Todo {
 			id, idErr := strconv.Atoi(record[0])
 			isDeleted, delErr := strconv.ParseBool(record[3])
 			if idErr == nil && delErr == nil {
-				todos = append(todos, Todo{ID: id, Task: record[1], Status: record[2], IsDeleted: isDeleted})
+				todos = append(todos, &model.Todo{ID: id, Task: record[1], Status: record[2], IsDeleted: isDeleted})
 			} else {
 				log.Println("Ignoring record #", numOfRecords, idErr, delErr)
 			}
@@ -91,7 +82,7 @@ func cleanupCsvFile(filename string) (*csv.Writer, *os.File, error) {
 	return cw, csvfile, nil
 }
 
-func todoToStringArray(todo Todo) []string {
+func todoToStringArray(todo *model.Todo) []string {
 	id := strconv.Itoa(todo.ID)
 	isDeleted := strconv.FormatBool(todo.IsDeleted)
 	return []string{id, todo.Task, todo.Status, isDeleted}
@@ -117,7 +108,7 @@ func getTodo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(&Todo{})
+	json.NewEncoder(w).Encode(&model.Todo{})
 }
 
 // POST /todos
@@ -130,7 +121,7 @@ func createTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cw := csv.NewWriter(csvfile)
-	var todo Todo
+	var todo *model.Todo
 	_ = json.NewDecoder(r.Body).Decode(&todo)
 	if err := cw.Write(todoToStringArray(todo)); err != nil {
 		log.Fatalln("Error persisting into csv", filename, err)
@@ -142,7 +133,7 @@ func createTodo(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(todo)
 }
 
-func reWriteCSV(todos []Todo) error {
+func reWriteCSV(todos []*model.Todo) error {
 	csvw, csvfile, err := cleanupCsvFile(filename)
 	if err != nil {
 		return err
@@ -160,7 +151,7 @@ func reWriteCSV(todos []Todo) error {
 func softDeleteTodo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Contetn-Type", "application/json")
 	params := mux.Vars(r)
-	var todo Todo
+	var todo *model.Todo
 	todos := readCsvFile(filename)
 	for idx, item := range todos {
 		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
@@ -183,7 +174,7 @@ func softDeleteTodo(w http.ResponseWriter, r *http.Request) {
 func markTodoDone(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Contetn-Type", "application/json")
 	params := mux.Vars(r)
-	var todo Todo
+	var todo *model.Todo
 	todos := readCsvFile(filename)
 	for idx, item := range todos {
 		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
@@ -205,7 +196,7 @@ func markTodoDone(w http.ResponseWriter, r *http.Request) {
 func markTodoPending(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Contetn-Type", "application/json")
 	params := mux.Vars(r)
-	var todo Todo
+	var todo *model.Todo
 	todos := readCsvFile(filename)
 	for idx, item := range todos {
 		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
@@ -227,7 +218,7 @@ func markTodoPending(w http.ResponseWriter, r *http.Request) {
 func updateTask(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Contetn-Type", "application/json")
 	params := mux.Vars(r)
-	var todo Todo
+	var todo *model.Todo
 	todos := readCsvFile(filename)
 	for idx, item := range todos {
 		if id, err := strconv.Atoi(params["id"]); err == nil && item.ID == id {
