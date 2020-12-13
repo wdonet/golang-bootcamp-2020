@@ -15,6 +15,6 @@ func main() {
 	routes.DefineTodoRoutes(router)
 
 	// Start server
-	log.Println("Starting server at port [3000].")
+	log.Println("Starting server at port 3000.")
 	log.Fatal(http.ListenAndServe(":3000", router))
 }

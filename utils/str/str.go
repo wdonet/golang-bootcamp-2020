@@ -6,7 +6,7 @@ import (
 	"github.com/wdonet/golang-bootcamp-2020/domain/model"
 )
 
-// ToStringArray convert a Todo into an array of values
+// ToArrayOfValues convert a Todo into an array of values
 func ToArrayOfValues(todo *model.Todo) []string {
 	id := strconv.Itoa(todo.ID)
 	isDeleted := strconv.FormatBool(todo.IsDeleted)
