@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/wdonet/golang-bootcamp-2020/domain/model"
-	"github.com/wdonet/golang-bootcamp-2020/utils/str"
+	"github.com/wdonet/golang-bootcamp-2020/utilities"
 )
 
 const filename string = "./data/todos.csv"
@@ -65,7 +65,7 @@ func SaveTodo(todo *model.Todo) error {
 		return err
 	}
 	cw := csv.NewWriter(csvfile)
-	if err := cw.Write(str.ToArrayOfValues(todo)); err != nil {
+	if err := cw.Write(utilities.ToArrayOfValues(todo)); err != nil {
 		log.Fatalln("Error persisting into csv", filename, err)
 		csvfile.Close()
 		return err
@@ -96,7 +96,7 @@ func WriteOnFileAsNew(todos []*model.Todo) error {
 		return err
 	}
 	for _, item := range todos {
-		if err := csvw.Write(str.ToArrayOfValues(item)); err != nil {
+		if err := csvw.Write(utilities.ToArrayOfValues(item)); err != nil {
 			log.Fatalln("Unable to persist:", item, err)
 		}
 	}
